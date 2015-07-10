@@ -29,6 +29,16 @@ module DelayedPaperclip
       def perform
         DelayedPaperclip.process_job(instance_klass, instance_id, attachment_name)
       end
+
+      def success
+        success_hook_method_name = :delayed_paperclip_success_hook
+        instance = instance_klass.constantize.unscoped.find(instance_id)
+
+        if instance && instance.methods.include?(success_hook_method_name)
+          instance.send(success_hook_method_name, attachment_name)
+        end
+
+      end
     end
   end
 end
