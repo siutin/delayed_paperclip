@@ -31,11 +31,15 @@ module DelayedPaperclip
       end
 
       def success
-        success_hook_method_name = :delayed_paperclip_success_hook
+
+        attachment_hook = "delayed_paperclip_#{attachment_name.to_s}_success_hook".to_sym
+        class_hook = :delayed_paperclip_success_hook
+
         instance = instance_klass.constantize.unscoped.find(instance_id)
 
-        if instance && instance.methods.include?(success_hook_method_name)
-          instance.send(success_hook_method_name, attachment_name)
+        if instance
+          instance.send(attachment_hook) if instance.methods.include? attachment_hook
+          instance.send(class_hook, attachment_name) if instance.methods.include? class_hook
         end
 
       end
