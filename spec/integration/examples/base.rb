@@ -12,10 +12,10 @@ shared_examples "base usage" do
 
     it "allows normal paperclip functionality" do
       Paperclip::Attachment.any_instance.expects(:post_process)
-      dummy.image.delay_processing?.should be_false
-      dummy.image.post_processing.should be_true
-      dummy.save.should be_true
-      File.exists?(dummy.image.path).should be_true
+      dummy.image.delay_processing?.should be_falsey
+      dummy.image.post_processing.should be_truthy
+      dummy.save.should be_truthy
+      File.exists?(dummy.image.path).should be_truthy
     end
 
     context "missing url" do
@@ -52,16 +52,16 @@ shared_examples "base usage" do
       dummy.image.post_processing = true
     end
     it "has delay_processing is false" do
-      dummy.image.delay_processing?.should be_false
+      dummy.image.delay_processing?.should be_falsey
     end
 
     it "post processing returns true" do
-      dummy.image.post_processing.should be_true
+      dummy.image.post_processing.should be_truthy
     end
 
     it "writes the file" do
       dummy.save
-      File.exists?(dummy.image.path).should be_true
+      File.exists?(dummy.image.path).should be_truthy
     end
   end
 
@@ -73,16 +73,16 @@ shared_examples "base usage" do
     end
 
     it "delays processing" do
-      dummy.image.delay_processing?.should be_true
+      dummy.image.delay_processing?.should be_truthy
     end
 
     it "post_processing is false" do
-      dummy.image.post_processing.should be_false
+      dummy.image.post_processing.should be_falsey
     end
 
     it "has file after save" do
       dummy.save
-      File.exists?(dummy.image.path).should be_true
+      File.exists?(dummy.image.path).should be_truthy
     end
 
   end
@@ -98,22 +98,24 @@ shared_examples "base usage" do
   describe "processing column not altered" do
     it "resets after job finished" do
       dummy.save!
-      dummy.image_processing?.should be_true
+      dummy.image_processing?.should be_truthy
       process_jobs
-      dummy.reload.image_processing?.should be_false
+      dummy.reload.image_processing?.should be_falsey
     end
 
     context "with error" do
-      before :each do
-        Paperclip::Attachment.any_instance.stubs(:reprocess!).raises(StandardError.new('oops'))
-      end
-
       it "stays true even if errored" do
+        Paperclip::Attachment.any_instance.stubs(:reprocess!).raises(StandardError.new('oops'))
+
         dummy.save!
-        dummy.image_processing?.should be_true
-        process_jobs
-        dummy.image_processing?.should be_true
-        dummy.reload.image_processing?.should be_true
+        dummy.image_processing?.should be_truthy
+
+        expect do
+          process_jobs
+        end.to raise_error(StandardError)
+
+        dummy.image_processing?.should be_truthy
+        dummy.reload.image_processing?.should be_truthy
       end
     end
   end
@@ -121,10 +123,10 @@ shared_examples "base usage" do
   # TODO: test appears redundant
   describe "processing is true for new record" do
     it "is true" do
-      dummy.image_processing?.should be_false
-      dummy.new_record?.should be_true
+      dummy.image_processing?.should be_falsey
+      dummy.new_record?.should be_truthy
       dummy.save!
-      dummy.reload.image_processing?.should be_true
+      dummy.reload.image_processing?.should be_truthy
     end
   end
 
@@ -162,7 +164,7 @@ shared_examples "base usage" do
     context "same url if same file assigned" do
       it "falls to missing while processing" do
         dummy.save!
-        dummy.image = File.open("#{ROOT}/spec/fixtures/12k.png")
+        dummy.image = File.open("#{ROOT}/fixtures/12k.png")
         dummy.save!
         dummy.image.url.should start_with("/images/original/missing.png")
         process_jobs
@@ -176,7 +178,7 @@ shared_examples "base usage" do
     context "paperclip callback" do
       before :each do
         Dummy.send(:define_method, :done_processing) { puts 'done' }
-        Dummy.after_image_post_process :done_processing
+        Dummy.send(:after_image_post_process, :done_processing)
         Dummy.any_instance.expects(:done_processing).once
       end
 
@@ -243,7 +245,7 @@ shared_examples "base usage" do
       dummy.save!
       process_jobs
       dummy.reload.image.url(:thumbnail).should start_with("/system/dummies/images/000/000/001/thumbnail/12k.jpg")
-      File.exists?(dummy.image.path).should be_true
+      File.exists?(dummy.image.path).should be_truthy
     end
   end
 
@@ -259,9 +261,9 @@ shared_examples "base usage" do
 
     it "does not increase jobs count" do
       dummy.save!
-      dummy.image_processing?.should be_true
+      dummy.image_processing?.should be_truthy
       process_jobs
-      dummy.reload.image_processing?.should be_false
+      dummy.reload.image_processing?.should be_falsey
 
       Paperclip::Attachment.any_instance.expects(:reprocess!).once
 
@@ -269,8 +271,8 @@ shared_examples "base usage" do
       dummy.image.reprocess_without_delay!(:thumbnail)
       existing_jobs.should == jobs_count
 
-      dummy.image_processing?.should be_false
-      File.exists?(dummy.image.path).should be_true
+      dummy.image_processing?.should be_falsey
+      File.exists?(dummy.image.path).should be_truthy
     end
 
   end
@@ -312,5 +314,13 @@ shared_examples "base usage" do
     end
   end
 
-end
+  describe "queue option" do
+    it "enqueues job with given queue name" do
+      reset_dummy :queue => "custom"
 
+      expect do
+        dummy.save!
+      end.to change { jobs_count("custom") }.by(1)
+    end
+  end
+end

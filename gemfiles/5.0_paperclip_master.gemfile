@@ -2,7 +2,7 @@
 
 source "http://rubygems.org"
 
-gem "rails", "~> 3.2.15"
-gem "delayed_paperclip", :path => "../"
+gem "rails", "~> 5.0.0"
+gem "paperclip", :github => "thoughtbot/paperclip"
 
 gemspec :path => "../"

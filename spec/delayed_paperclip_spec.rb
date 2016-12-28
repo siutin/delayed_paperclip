@@ -1,28 +1,28 @@
 require 'spec_helper'
-require 'resque'
 
 describe DelayedPaperclip do
-  before :all do
+  before :each do
     reset_dummy
   end
 
   describe ".options" do
     it ".options returns basic options" do
-      DelayedPaperclip.options.should == {:background_job_class => DelayedPaperclip::Jobs::Resque,
+      DelayedPaperclip.options.should == {:background_job_class => DelayedPaperclip::ProcessJob,
                                           :url_with_processing => true,
-                                          :processing_image_url => nil}
+                                          :processing_image_url => nil,
+                                          :queue => "paperclip"}
     end
   end
 
   describe ".processor" do
     it ".processor returns processor" do
-      DelayedPaperclip.processor.should == DelayedPaperclip::Jobs::Resque
+      DelayedPaperclip.processor.should == DelayedPaperclip::ProcessJob
     end
   end
 
   describe ".enqueue" do
     it "delegates to processor" do
-      DelayedPaperclip::Jobs::Resque.expects(:enqueue_delayed_paperclip).with("Dummy", 1, :image)
+      DelayedPaperclip::ProcessJob.expects(:enqueue_delayed_paperclip).with("Dummy", 1, :image)
       DelayedPaperclip.enqueue("Dummy", 1, :image)
     end
   end
@@ -40,20 +40,19 @@ describe DelayedPaperclip do
   end
 
   describe "paperclip definitions" do
-    before :all do
+    before :each do
       reset_dummy :paperclip => { styles: { thumbnail: "25x25"} }
     end
 
     it "returns paperclip options regardless of version" do
-      Dummy.paperclip_definitions.should ==  {:image =>   { :styles => { :thumbnail => "25x25" },
+      expect(Dummy.paperclip_definitions).to eq({:image =>   { :styles => { :thumbnail => "25x25" },
                                               :delayed => { :priority => 0,
                                                             :only_process => [],
                                                             :url_with_processing => true,
                                                             :processing_image_url => nil,
-                                                            :queue => nil}
+                                                            :queue => "paperclip"}
                                                           }
-                                              }
+                                              })
     end
-
   end
 end

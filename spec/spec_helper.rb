@@ -1,16 +1,10 @@
 $LOAD_PATH.unshift(File.dirname(__FILE__))
 $LOAD_PATH.unshift(File.join(File.dirname(__FILE__), "..", "lib"))
 
+require 'rails'
 require 'active_record'
-require 'active_record/version'
-require 'active_support'
-require 'active_support/core_ext'
 require 'rspec'
 require 'mocha/api'
-begin
-  require 'active_job'
-rescue LoadError
-end
 
 begin
   require 'pry'
@@ -24,10 +18,9 @@ Paperclip::Railtie.insert
 require 'delayed_paperclip/railtie'
 DelayedPaperclip::Railtie.insert
 
-
-
 # silence deprecation warnings in rails 4.2
-if ActiveRecord::Base.respond_to?(:raise_in_transactional_callbacks=)
+# in Rails 5 this setting is deprecated and has no effect
+if ActiveRecord::Base.respond_to?(:raise_in_transactional_callbacks=) && Rails::VERSION::MAJOR < 5
   ActiveRecord::Base.raise_in_transactional_callbacks = true
 end
 
@@ -38,24 +31,39 @@ ActiveRecord::Base.establish_connection(
 )
 
 # Path for filesystem writing
-ROOT = Pathname(File.expand_path(File.join(File.dirname(__FILE__), '..')))
+ROOT = Pathname.new(File.expand_path("../.", __FILE__))
 
-FIXTURES_DIR = File.join(File.dirname(__FILE__), "fixtures")
-ActiveRecord::Base.logger = Logger.new(File.dirname(__FILE__) + "/debug.log")
-Paperclip.logger = ActiveRecord::Base.logger
+logger = Logger.new(ROOT.join("tmp/debug.log"))
+ActiveRecord::Base.logger = logger
+ActiveJob::Base.logger = logger
+Paperclip.logger = logger
 
 RSpec.configure do |config|
   config.mock_with :mocha
 
+  config.order = :random
+
   config.filter_run focus: true
   config.run_all_when_everything_filtered = true
+
+  config.before(:each) do
+    reset_global_default_options
+  end
+end
+
+def reset_global_default_options
+  DelayedPaperclip.options.merge!({
+    :background_job_class => DelayedPaperclip::ProcessJob,
+    :url_with_processing  => true,
+    :processing_image_url => nil
+  })
 end
 
 # In order to not duplicate code directly from Paperclip's spec support
 # We're requiring the MockInterpolator object to be used
 require Gem.find_files("../spec/support/mock_interpolator").first
 
-Dir["./spec/integration/examples/*.rb"].sort.each {|f| require f}
+Dir["./spec/integration/examples/*.rb"].sort.each { |f| require f }
 
 # Reset table and class with image_processing column or not
 def reset_dummy(options = {})
@@ -103,10 +111,9 @@ def reset_class(class_name, options)
     def reprocess
       image.reprocess!
     end
-
   end
 
-  Rails.stubs(:root).returns(Pathname.new(ROOT).join('spec', 'tmp'))
+  Rails.stubs(:root).returns(ROOT.join("tmp"))
   klass.reset_column_information
   klass
 end

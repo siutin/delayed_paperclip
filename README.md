@@ -2,8 +2,8 @@ Delayed::Paperclip [![Build Status](https://travis-ci.org/jrgifford/delayed_pape
 ======================================================================================
 
 
-DelayedPaperclip lets you process your [Paperclip](http://github.com/thoughtbot/paperclip) attachments in a
-background task with [DelayedJob](https://github.com/collectiveidea/delayed_job), [Resque](https://github.com/resque/resque) or [Sidekiq](https://github.com/mperham/sidekiq).
+DelayedPaperclip lets you process your [Paperclip](http://github.com/thoughtbot/paperclip)
+attachments in a background task with [ActiveJob](https://github.com/rails/rails/tree/master/activejob)
 
 Why?
 ----
@@ -11,8 +11,7 @@ Why?
 The most common use case for Paperclip is to easily attach image files
 to ActiveRecord models. Most of the time these image files will have
 multiple styles and will need to be resized when they are created. This
-is usually a pretty [slow operation](http://www.jstorimer.com/ruby/2010/01/05/speep-up-your-paperclip-tests.html) and should be handled in a
-background task.
+is usually a pretty slow operation and should be handled in a background task.
 
 I’m sure that everyone knows this, this gem just makes it easy to do.
 
@@ -21,28 +20,23 @@ Installation
 
 Install the gem:
 
-````
+```
 gem install delayed_paperclip
-````
+```
 
 Or even better, add it to your Gemfile.
 
-````
+```
 source "https://rubygems.org"
-gem 'delayed_paperclip'
-````
-
-Dependencies:
-
--   Paperclip
--   DJ, Resque or Sidekiq
+gem "delayed_paperclip"
+```
 
 Usage
 -----
 
 In your model:
 
-````ruby
+```ruby
 class User < ActiveRecord::Base
   has_attached_file :avatar, styles: {
                                        medium: "300x300>",
@@ -51,33 +45,9 @@ class User < ActiveRecord::Base
 
   process_in_background :avatar
 end
-````
+```
 
 Use your Paperclip attachment just like always in controllers and views.
-
-To select between using Resque or Delayed::Job, just install and
-configure your choice properly within your application, and
-delayed_paperclip will do the rest. It will detect which library is
-loaded and make a decision about which sort of job to enqueue at that
-time.
-
-### Resque
-
-Make sure that you have [Resque](https://github.com/resque/resque) up and running. The jobs will be
-dispatched to the <code>:paperclip</code> queue, so you can correctly
-dispatch your worker. Configure resque and your workers exactly as you
-would otherwise.
-
-### DJ
-
-Just make sure that you have DJ up and running.
-
-### Sidekiq
-
-Make sure that [Sidekiq](http://github.com/mperham/sidekiq) is running and listening to the
-`paperclip` queue, either by adding it to your
-`sidekiq.yml` config file under `- queues:` or by
-passing the command line argument `-q paperclip` to Sidekiq.
 
 ### Displaying images during processing
 
@@ -91,7 +61,7 @@ To have the missing image url be outputted by paperclip while the image is being
 `#{attachment_name}_processing` column to the specific model you want
 to enable this feature for. This feature gracefully degrades and will not affect models which do not have the column added to them.
 
-````ruby
+```ruby
 class AddAvatarProcessingToUser < ActiveRecord::Migration
   def self.up
     add_column :users, :avatar_processing, :boolean
@@ -105,38 +75,39 @@ end
 @user = User.new(avatar: File.new(...))
 @user.save
 @user.avatar.url #=> "/images/original/missing.png"
-Delayed::Worker.new.work_off
+
+# Process job
 
 @user.reload
 @user.avatar.url #=> "/system/images/3/original/IMG_2772.JPG?1267562148"
-````
+```
 
 #### Custom image for processing
 
 This is useful if you have a difference between missing images and
 images currently being processed.
 
-````ruby
+```ruby
 class User < ActiveRecord::Base
   has_attached_file :avatar
 
-  process_in_background :avatar, processing_image_url: "/images/original/processing.jpg"
+  process_in_background :avatar, processing_image_url: "/images/:style/processing.jpg"
 end
 
 @user = User.new(avatar: File.new(...))
 @user.save
 @user.avatar.url #=> "/images/original/processing.png"
-Delayed::Worker.new.work_off
+
+# Process job
 
 @user.reload
 @user.avatar.url #=> "/system/images/3/original/IMG_2772.JPG?1267562148"
-````
+```
 
 You can also define a custom logic for `processing_image_url`, for
-example to display the original\
-picture while specific formats are being processed.
+example to display the original picture while specific formats are being processed.
 
-````ruby
+```ruby
 class Item < ActiveRecord::Base
   has_attached_file :photo
 
@@ -147,7 +118,7 @@ class Item < ActiveRecord::Base
     options[:interpolator].interpolate(options[:url], photo, :original)
   end
 end
-````
+```
 
 #### Have processing? status available, but construct image URLs as if delayed_paperclip wasn’t present
 
@@ -157,7 +128,7 @@ If you define the `#{attachment_name}_processing` column, but set the
 Note especially the method #processing? which passes through the value
 of the boolean created via migration.
 
-````ruby
+```ruby
 class User < ActiveRecord::Base
   has_attached_file :avatar
 
@@ -168,36 +139,37 @@ end
 @user.save
 @user.avatar.url #=> "/system/images/3/original/IMG_2772.JPG?1267562148"
 @user.avatar.processing? #=> true
-Delayed::Worker.new.work_off
+
+# Process job
 
 @user.reload
 @user.avatar.url #=> "/system/images/3/original/IMG_2772.JPG?1267562148"
 @user.avatar.processing? #=> false
-````
+```
 
 #### Only process certain styles
 
 This is useful if you don’t want the background job to reprocess all
 styles.
 
-````ruby
+```ruby
 class User < ActiveRecord::Base
-  has_attached_file :avatar, styles: { small: "25x25#", medium: "50x50x" }
+  has_attached_file :avatar, styles: { small: "25x25#", medium: "50x50#" }
 
   process_in_background :avatar, only_process: [:small]
 end
-````
+```
 
 Like paperclip, you could also supply a lambda function to define
 `only_process` dynamically.
 
-````ruby
+```ruby
 class User < ActiveRecord::Base
-  has_attached_file :avatar, styles: { small: "25x25#", medium: "50x50x" }
+  has_attached_file :avatar, styles: { small: "25x25#", medium: "50x50#" }
 
   process_in_background :avatar, only_process: lambda { |a| a.instance.small_supported? ? [:small, :large] : [:large] }
 end
-````
+```
 
 #### Split processing
 
@@ -205,30 +177,43 @@ You can process some styles in the foreground and some in the background
 by setting `only_process` on both `has_attached_file` and
 `process_in_background`.
 
-````ruby
+```ruby
 class User < ActiveRecord::Base
-  has_attached_file :avatar, styles: { small: "25x25#", medium: "50x50x" }, only_process: [:small]
+  has_attached_file :avatar, styles: { small: "25x25#", medium: "50x50#" }, only_process: [:small]
 
   process_in_background :avatar, only_process: [:medium]
 end
-````
+```
 
 #### Reprocess Without Delay
 
 This is useful if you don’t want the background job. It accepts
-individual styles to. Take note, normal `reprocess!` does not accept styles as arguments anymore. It will delegate to DelayedPaperclip and
+individual styles too. Take note, normal `reprocess!` does not accept styles as arguments anymore. It will delegate to DelayedPaperclip and
 reprocess all styles.
 
-````ruby
+```ruby
 class User < ActiveRecord::Base
-  has_attached_file :avatar, styles: { small: "25x25#", medium: "50x50x" }
+  has_attached_file :avatar, styles: { small: "25x25#", medium: "50x50#" }
 
   process_in_background :avatar
 end
 
 @user.avatar.url #=> "/system/images/3/original/IMG_2772.JPG?1267562148"
 @user.avatar.reprocess_without_delay!(:medium)
-````
+```
+
+#### Set queue name
+
+You can set queue name for background job. By default it's called "paperclip".
+You can set it by changing global default options or by:
+
+```ruby
+class User < ActiveRecord::Base
+  has_attached_file :avatar
+
+  process_in_background :avatar, queue: "default"
+end
+```
 
 Defaults
 --------
@@ -239,7 +224,7 @@ defined by changing the DelayedPaperclip.options Hash, this can be useful for se
 If you’re using Rails you can define a Hash with default options in
 config/application.rb or in any of the config/environments/\*.rb files on `config.delayed_paperclip_defaults`, these will get merged into DelayedPaperclip.options as your Rails app boots. An example:
 
-````
+```ruby
 module YourApp
   class Application < Rails::Application
     # Other code...
@@ -250,13 +235,50 @@ module YourApp
     }
   end
 end
-````
+```
 
 What if I’m not using images?
 -----------------------------
 
 This library works no matter what kind of post-processing you are doing
 with Paperclip.
+
+Paperclip Post-processors are not working
+-----------------------------------------
+
+If you are using custom [post-processing processors](https://github.com/thoughtbot/paperclip#post-processing)
+like this:
+
+```ruby
+# ...
+
+has_attached_file :avatar, styles: { thumb: '100x100>' },  processors: [:rotator]
+process_in_background :avatar
+
+def rotate!
+  # ...
+  avatar.reprocess!
+  # ...
+end
+
+# ...
+```
+
+...you may encounter an issue where your post-processors are ignored
+([more info](https://github.com/jrgifford/delayed_paperclip/issues/171)).
+In order to avoid this use `reprocess_without_delay!`
+
+```ruby
+# ...
+
+def rotate!
+  # ...
+  avatar.reprocess_without_delay!
+  # ...
+end
+
+# ...
+```
 
 Does it work with s3?
 ---------------------
@@ -266,10 +288,16 @@ Yes.
 Contributing
 ------------
 
-Checkout out CONTRIBUTING. In short, you’ll need a redis server running
-for testing. Run all tests with
+Checkout out [CONTRIBUTING](https://github.com/jrgifford/delayed_paperclip/blob/master/CONTRIBUTING). Run specs with:
 
-````
+```
 # Rspec on all versions
-rake appraisal spec
-````
+bundle exec appraisal install
+bundle exec appraisal rake
+
+# Rspec on latest stable gems
+bundle exec rake
+
+# Rspec on specific rails version
+bundle exec appraisal 5.0 rake
+```

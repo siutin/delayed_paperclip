@@ -1,14 +1,11 @@
 require 'spec_helper'
 
 describe DelayedPaperclip::ClassMethods do
-
-  before :all do
-    DelayedPaperclip.options[:background_job_class] = DelayedPaperclip::Jobs::Resque
+  before :each do
     reset_dummy(with_processed: false)
   end
 
   describe ".process_in_background" do
-
     it "is empty to start" do
       Dummy.paperclip_definitions.should == { :image => {} }
     end
@@ -21,9 +18,22 @@ describe DelayedPaperclip::ClassMethods do
           :only_process => [],
           :url_with_processing => true,
           :processing_image_url => nil,
-          :queue => nil}
+          :queue => "paperclip"}
         }
       }
+    end
+
+    it "allows to set queue name" do
+      Dummy.process_in_background(:image, :queue => "custom")
+      expect(Dummy.paperclip_definitions).to eq({ :image => {
+        :delayed => {
+          :priority => 0,
+          :only_process => [],
+          :url_with_processing => true,
+          :processing_image_url => nil,
+          :queue => "custom"}
+        }
+      })
     end
 
     context "with processing_image_url" do
@@ -38,7 +48,7 @@ describe DelayedPaperclip::ClassMethods do
             :only_process => [],
             :url_with_processing => true,
             :processing_image_url => "/processing/url",
-            :queue => nil}
+            :queue => "paperclip"}
           }
         }
       end
@@ -58,7 +68,7 @@ describe DelayedPaperclip::ClassMethods do
             :only_process => [:small, :large],
             :url_with_processing => true,
             :processing_image_url => nil,
-            :queue => nil}
+            :queue => "paperclip"}
           }
         }
       end
@@ -73,16 +83,13 @@ describe DelayedPaperclip::ClassMethods do
       end
 
       context "save" do
-        before :each do
-          Dummy.stubs(:respond_to?).with(:after_commit).returns(false)
-        end
-
         it "sets after_save callback" do
+          Dummy.stubs(:respond_to?).with(:attachment_definitions).returns(true)
+          Dummy.stubs(:respond_to?).with(:after_commit).returns(false)
           Dummy.expects(:after_save).with(:enqueue_delayed_processing)
           Dummy.process_in_background(:image)
         end
       end
     end
   end
-
 end

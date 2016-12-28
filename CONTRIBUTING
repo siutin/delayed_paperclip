@@ -8,9 +8,6 @@ Testing
 
 Please don't commit code without tests. You can bootstrap the development environment by running `bundle install`. After that, running `rake` should just work. If it doesn't then file a bug.
 
-Dependencies for Testing:
-  - Redis. You need redis. For linux users, you can install the redis-server package and roll, Mac users will need to install it with homebrew, and I'm not entirely sure how to make it work with Windows users.
-
 Versioning
 =========
 
