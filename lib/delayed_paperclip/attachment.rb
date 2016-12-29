@@ -50,9 +50,11 @@ module DelayedPaperclip
     def process_delayed!
       self.job_is_processing = true
       self.post_processing = true
-      reprocess!(*delayed_only_process)
+      reprocess_result = reprocess!(*delayed_only_process)
       self.job_is_processing = false
-      update_processing_column
+      update_result = update_processing_column
+      success if reprocess_result
+      update_result
     end
 
     def processing_image_url
@@ -83,6 +85,22 @@ module DelayedPaperclip
         instance.send("#{name}_processing=", false)
         instance.class.where(instance.class.primary_key => instance.id).update_all({ "#{name}_processing" => false })
       end
+    end
+
+    protected
+
+    def success
+
+      attachment_hook = "delayed_paperclip_#{@name.to_s}_success_hook".to_sym
+      class_hook = :delayed_paperclip_success_hook
+
+      instance = @instance.class.unscoped.find(@instance.id)
+
+      if instance
+        instance.send(attachment_hook) if instance.methods.include? attachment_hook
+        instance.send(class_hook, @name) if instance.methods.include? class_hook
+      end
+
     end
 
   end
